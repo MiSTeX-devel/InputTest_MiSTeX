@@ -22,10 +22,9 @@
 module sys_top
 (
 	/////////// CLOCK //////////
-	input         FPGA_CLK1_50,
-	input         FPGA_CLK2_50,
-	input         FPGA_CLK3_50,
+	input         CLK_50,
 
+`ifndef MISTER_DEBUG_NOHDMI
 	//////////// HDMI //////////
 	output        HDMI_I2C_SCL,
 	inout         HDMI_I2C_SDA,
@@ -40,8 +39,9 @@ module sys_top
 	output [23:0] HDMI_TX_D,
 	output        HDMI_TX_HS,
 	output        HDMI_TX_VS,
-	
+
 	input         HDMI_TX_INT,
+`endif
 
 	//////////// SDR ///////////
 	output [12:0] SDRAM_A,
@@ -74,17 +74,19 @@ module sys_top
 	output  [5:0] VGA_B,
 	inout         VGA_HS,  // VGA_HS is secondary SD card detect when VGA_EN = 1 (inactive)
 	output		  VGA_VS,
-	input         VGA_EN,  // active low
+	//input         VGA_EN,  // active low
 
 	/////////// AUDIO //////////
 	output		  AUDIO_L,
 	output		  AUDIO_R,
 	output		  AUDIO_SPDIF,
 
+/*
 	//////////// SDIO ///////////
 	inout   [3:0] SDIO_DAT,
 	inout         SDIO_CMD,
 	output        SDIO_CLK,
+*/
 
 	//////////// I/O ///////////
 	output        LED_USER,
@@ -102,44 +104,76 @@ module sys_top
 	output        SD_SPI_MOSI,
 
 	inout         SDCD_SPDIF,
-	output        IO_SCL,
-	inout         IO_SDA,
-
-	////////// ADC //////////////
-	output        ADC_SCK,
-	input         ADC_SDO,
-	output        ADC_SDI,
-	output        ADC_CONVST,
-
-	////////// MB KEY ///////////
-	input   [1:0] KEY,
-
-	////////// MB SWITCH ////////
-	input   [3:0] SW,
 
 	////////// MB LED ///////////
 	output  [7:0] LED,
 
-	///////// USER IO ///////////
-	inout   [6:0] USER_IO
+	/////// HPS INTERFACE ///////
+	input         HPS_SPI_MOSI,
+    output        HPS_SPI_MISO,
+    input         HPS_SPI_CLK,
+    input         HPS_SPI_CS,
+
+	input 		  HPS_FPGA_ENABLE,
+    input 		  HPS_OSD_ENABLE,
+    input 		  HPS_IO_ENABLE
 );
+
+wire [2:0] PLL_CLOCKS;
+
+ALTPLL #(
+	.BANDWIDTH_TYPE("AUTO"),
+	.CLK0_DIVIDE_BY(4'd12),
+	.CLK0_DUTY_CYCLE(6'd50),
+	.CLK0_MULTIPLY_BY(5'd12),
+	.CLK0_PHASE_SHIFT(1'd0),
+	.CLK1_DIVIDE_BY(4'd12),
+	.CLK1_DUTY_CYCLE(6'd50),
+	.CLK1_MULTIPLY_BY(5'd12),
+	.CLK1_PHASE_SHIFT(1'd0),
+	.CLK2_DIVIDE_BY(4'd12),
+	.CLK2_DUTY_CYCLE(6'd50),
+	.CLK2_MULTIPLY_BY(5'd12),
+	.CLK2_PHASE_SHIFT(1'd0),
+	.COMPENSATE_CLOCK("CLK0"),
+	.INCLK0_INPUT_FREQUENCY(15'd50000),
+	.OPERATION_MODE("NORMAL")
+) main_pll (
+	.ARESET(1'd0),
+	.CLKENA(5'd31),
+	.EXTCLKENA(4'd15),
+	.FBIN(1'd1),
+	.INCLK(FPGA_CLK1_50),
+	.PFDENA(1'd1),
+	.PLLENA(1'd1),
+	.CLK(PLL_CLOCKS),
+	.LOCKED()
+);
+
+assign FPGA_CLK1_50 = PLL_CLOCKS[0];
+assign FPGA_CLK2_50 = PLL_CLOCKS[1];
+assign FPGA_CLK3_50 = PLL_CLOCKS[2];
 
 //////////////////////  Secondary SD  ///////////////////////////////////
 wire SD_CS, SD_CLK, SD_MOSI;
 
+////////// MB SWITCH ////////
+wire   [3:0] SW;
+assign SW[3:0] = 3'b0;
+
 `ifndef MISTER_DUAL_SDRAM
-	wire sd_miso = SW[3] | SDIO_DAT[0];
+	wire sd_miso = SW[3]; // | SDIO_DAT[0];
 `else
 	wire sd_miso = 1;
 `endif
 wire SD_MISO = mcp_sdcd ? sd_miso : SD_SPI_MISO;
 
 `ifndef MISTER_DUAL_SDRAM
-	assign SDIO_DAT[2:1]= 2'bZZ;
-	assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
-	assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
-	assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
-	assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
+	// assign SDIO_DAT[2:1]= 2'bZZ;
+	// assign SDIO_DAT[3]  = SW[3] ? 1'bZ  : SD_CS;
+	// assign SDIO_CLK     = SW[3] ? 1'bZ  : SD_CLK;
+	// assign SDIO_CMD     = SW[3] ? 1'bZ  : SD_MOSI;
+	// assign SD_SPI_CS    = mcp_sdcd ? ((~VGA_EN & sog & ~cs1) ? 1'b1 : 1'bZ) : SD_CS;
 `else
 	assign SD_SPI_CS    = mcp_sdcd ? 1'bZ : SD_CS;
 `endif
@@ -168,7 +202,7 @@ assign LED = (led_overtake & led_state) | (~led_overtake & {1'b0,led_locked,1'b0
 
 wire btn_r, btn_o, btn_u;
 `ifdef MISTER_DUAL_SDRAM
-	assign {btn_r,btn_o,btn_u} = {mcp_btn[1],mcp_btn[2],mcp_btn[0]};
+	assign {btn_r,btn_o,btn_u} = SW[3] ? {mcp_btn[1],mcp_btn[2],mcp_btn[0]} : ~{SDRAM2_DQ[9],SDRAM2_DQ[13],SDRAM2_DQ[11]};
 `else
 	assign {btn_r,btn_o,btn_u} = ~{BTN_RESET,BTN_OSD,BTN_USER} | {mcp_btn[1],mcp_btn[2],mcp_btn[0]};
 `endif
@@ -198,11 +232,11 @@ always @(posedge FPGA_CLK2_50) begin
 	if(div > 100000) div <= 0;
 
 	if(!div) begin
-		deb_user <= {deb_user[6:0], btn_u | ~KEY[1]};
+		deb_user <= {deb_user[6:0], btn_u};
 		if(&deb_user) btn_user <= 1;
 		if(!deb_user) btn_user <= 0;
 
-		deb_osd <= {deb_osd[6:0], btn_o | ~KEY[0]};
+		deb_osd <= {deb_osd[6:0], btn_o};
 		if(&deb_osd) btn_osd <= 1;
 		if(!deb_osd) btn_osd <= 0;
 	end
@@ -212,43 +246,24 @@ end
 
 // gp_in[31] = 0 - quick flag that FPGA is initialized (HPS reads 1 when FPGA is not in user mode)
 //                 used to avoid lockups while JTAG loading
-wire [31:0] gp_in = {1'b0, btn_user | btn[1], btn_osd | btn[0], SW[3], 8'd0, io_ver, io_ack, io_wide, io_dout};
+wire [31:0] gp_in = {1'b0, btn_user | btn[1], btn_osd | btn[0], SW[3], 8'd0, io_ver, 1'b0 /* io_ack */, io_wide, io_dout};
 wire [31:0] gp_out;
 
 wire  [1:0] io_ver = 1; // 0 - obsolete. 1 - optimized HPS I/O. 2,3 - reserved for future.
 wire        io_wait;
 wire        io_wide;
-wire [15:0] io_dout;                  
-wire [15:0] io_din = gp_outr[15:0];
-wire        io_clk = gp_outr[17];
-wire        io_ss0 = gp_outr[18];
-wire        io_ss1 = gp_outr[19];
-wire        io_ss2 = gp_outr[20];
+wire [15:0] io_dout;
+wire [15:0] io_din      = gp_out[15:0];
+wire        fpga_enable = gp_out[18];
+wire        osd_enable  = gp_out[19];
+wire        io_enable   = gp_out[20];
 
 `ifndef MISTER_DEBUG_NOHDMI
-wire io_osd_hdmi = io_ss1 & ~io_ss0;
+wire io_osd_hdmi = osd_enable & ~fpga_enable;
 `endif
 
-wire io_fpga     = ~io_ss1 & io_ss0;
-wire io_uio      = ~io_ss1 & io_ss2;
-
-reg  io_ack;
-reg  rack;
-wire io_strobe = ~rack & io_clk;
-
-always @(posedge clk_sys) begin
-	if(~(io_wait | vs_wait) | io_strobe) begin
-		rack <= io_clk;
-		io_ack <= rack;
-	end
-end
-
-reg [31:0] gp_outr;
-always @(posedge clk_sys) begin
-	reg [31:0] gp_outd;
-	gp_outr <= gp_outd;
-	gp_outd <= gp_out;
-end
+wire io_fpga     = ~osd_enable & fpga_enable;
+wire io_uio      = ~osd_enable & io_enable;
 
 `ifdef MISTER_DUAL_SDRAM
 	wire  [7:0] core_type  = 'hA8; // generic core, dual SDRAM.
@@ -259,12 +274,24 @@ end
 // HPS will not communicate to core if magic is different
 wire [31:0] core_magic = {24'h5CA623, core_type};
 
-cyclonev_hps_interface_mpu_general_purpose h2f_gp
-(
+wire io_strobe;
+hps_interface hps_interface (
 	.gp_in({~gp_out[31] ? core_magic : gp_in}),
-	.gp_out(gp_out)
-);
+	.gp_out(gp_out),
+	.io_strobe(io_strobe),
 
+	.spi_mosi(HPS_SPI_MOSI),
+	.spi_miso(HPS_SPI_MISO),
+	.spi_clk(HPS_SPI_CLK),
+	.spi_cs(HPS_SPI_CS),
+
+	.fpga_enable(HPS_FPGA_ENABLE),
+	.osd_enable(HPS_OSD_ENABLE),
+	.io_enable(HPS_IO_ENABLE),
+
+	.clk_sys(clk_sys),
+	.reset(reset_req)
+);
 
 reg [15:0] cfg;
 
@@ -278,11 +305,9 @@ wire       direct_video = 1;
 wire       direct_video = cfg[10];
 `endif
 
-wire       dvi_mode     = cfg[7];
 wire       audio_96k    = cfg[6];
 wire       csync_en     = cfg[3];
-wire       ypbpr_en     = cfg[5];
-wire       io_osd_vga   = io_ss1 & ~io_ss2;
+wire       io_osd_vga   = osd_enable & ~io_enable;
 `ifndef MISTER_DUAL_SDRAM
 	wire    sog          = cfg[9];
 	wire    vga_scaler   = cfg[2] | vga_force_scaler;
@@ -469,6 +494,8 @@ always@(posedge clk_sys) begin
 	if(~vs_d2 & vs_d1) vs_wait <= 0;
 end
 
+/* TODO
+
 cyclonev_hps_interface_peripheral_uart uart
 (
 	.ri(0),
@@ -499,6 +526,8 @@ cyclonev_hps_interface_interrupts interrupts
 	.irq(f2h_irq)
 );
 
+*/
+
 ///////////////////////////  RESET  ///////////////////////////////////
 
 reg reset_req = 0;
@@ -524,95 +553,7 @@ end
 wire reset;
 wire clk_100m;
 
-sysmem_lite sysmem
-(
-	//Reset/Clock
-	.reset_core_req(reset_req),
-	.reset_out(reset),
-	.clock(clk_100m),
-
-	//DE10-nano has no reset signal on GPIO, so core has to emulate cold reset button.
-	.reset_hps_cold_req(btn_r),
-
-	//64-bit DDR3 RAM access
-	.ram1_clk(ram_clk),
-	.ram1_address(ram_address),
-	.ram1_burstcount(ram_burstcount),
-	.ram1_waitrequest(ram_waitrequest),
-	.ram1_readdata(ram_readdata),
-	.ram1_readdatavalid(ram_readdatavalid),
-	.ram1_read(ram_read),
-	.ram1_writedata(ram_writedata),
-	.ram1_byteenable(ram_byteenable),
-	.ram1_write(ram_write),
-
-	//64-bit DDR3 RAM access
-	.ram2_clk(clk_audio),
-	.ram2_address(ram2_address),
-	.ram2_burstcount(ram2_burstcount),
-	.ram2_waitrequest(ram2_waitrequest),
-	.ram2_readdata(ram2_readdata),
-	.ram2_readdatavalid(ram2_readdatavalid),
-	.ram2_read(ram2_read),
-	.ram2_writedata(ram2_writedata),
-	.ram2_byteenable(ram2_byteenable),
-	.ram2_write(ram2_write),
-
-	//128-bit DDR3 RAM access
-	// HDMI frame buffer
-	.vbuf_clk(clk_100m),
-	.vbuf_address(vbuf_address),
-	.vbuf_burstcount(vbuf_burstcount),
-	.vbuf_waitrequest(vbuf_waitrequest),
-	.vbuf_writedata(vbuf_writedata),
-	.vbuf_byteenable(vbuf_byteenable),
-	.vbuf_write(vbuf_write),
-	.vbuf_readdata(vbuf_readdata),
-	.vbuf_readdatavalid(vbuf_readdatavalid),
-	.vbuf_read(vbuf_read)
-);
-
-wire [28:0] ram2_address;
-wire  [7:0] ram2_burstcount;
-wire  [7:0] ram2_byteenable;
-wire        ram2_waitrequest;
-wire [63:0] ram2_readdata;
-wire [63:0] ram2_writedata;
-wire        ram2_readdatavalid;
-wire        ram2_read;
-wire        ram2_write;
-wire  [7:0] ram2_bcnt;
-
-ddr_svc ddr_svc
-(
-	.clk(clk_audio),
-
-	.ram_waitrequest(ram2_waitrequest),
-	.ram_burstcnt(ram2_burstcount),
-	.ram_addr(ram2_address),
-	.ram_readdata(ram2_readdata),
-	.ram_read_ready(ram2_readdatavalid),
-	.ram_read(ram2_read),
-	.ram_writedata(ram2_writedata),
-	.ram_byteenable(ram2_byteenable),
-	.ram_write(ram2_write),
-	.ram_bcnt(ram2_bcnt),
-
-	.ch0_addr(alsa_address),
-	.ch0_burst(1),
-	.ch0_data(alsa_readdata),
-	.ch0_req(alsa_req),
-	.ch0_ready(alsa_ready),
-
-	.ch1_addr(pal_addr),
-	.ch1_burst(128),
-	.ch1_data(pal_data),
-	.ch1_req(pal_req),
-	.ch1_ready(pal_wr)
-);
-
 wire clk_pal = clk_audio;
-
 
 wire  [27:0] vbuf_address;
 wire   [7:0] vbuf_burstcount;
@@ -631,7 +572,7 @@ wire         freeze;
 `ifndef MISTER_DEBUG_NOHDMI
 wire clk_hdmi  = hdmi_clk_out;
 
-ascal 
+ascal
 #(
 	.RAMBASE(32'h20000000),
 `ifndef MISTER_FB
@@ -830,7 +771,7 @@ always @(posedge clk_vid) begin
 		ary <= ARY[11:0];
 		xy  <= ARX[12] | ARY[12];
 	end
-	
+
 	ar_md_start <= 0;
 	state <= state + 1'd1;
 	case(state)
@@ -886,7 +827,7 @@ always @(posedge clk_vid) begin
 				vmaxi <= ((HEIGHT - videoh)>>1) + videoh - 1'd1;
 			end
 	endcase
-	
+
 	hmin <= hmini;
 	hmax <= hmaxi;
 	vmin <= vmini;
@@ -918,7 +859,7 @@ pll_hdmi_adj pll_hdmi_adj
 
 wire [63:0] pal_data;
 wire [47:0] pal_d = {pal_data[55:32], pal_data[23:0]};
-wire  [6:0] pal_a = ram2_bcnt[6:0];
+wire  [6:0] pal_a = 0;
 wire        pal_wr;
 
 reg  [28:0] pal_addr;
@@ -930,7 +871,7 @@ always @(posedge clk_pal) begin
 
 	old_vs1 <= hdmi_vs;
 	old_vs2 <= old_vs1;
-	
+
 	if(~old_vs2 & old_vs1 & ~FB_FMT[2] & FB_FMT[1] & FB_FMT[0] & FB_EN) pal_req <= ~pal_req;
 end
 
@@ -1002,9 +943,9 @@ always @(posedge FPGA_CLK1_50) begin
 
 	gotd  <= cfg_got;
 	gotd2 <= gotd;
-	
+
 	adj_write <= 0;
-	
+
 	custd <= cfg_custom_t;
 	custd2 <= custd;
 	if(custd2 != custd & ~gotd) begin
@@ -1029,26 +970,12 @@ wire cfg_ready = 1;
 
 `endif
 
-wire hdmi_config_done;
-hdmi_config hdmi_config
-(
-	.iCLK(FPGA_CLK1_50),
-	.iRST_N(cfg_ready & ~HDMI_TX_INT & ~cfg_dis),
-	.done(hdmi_config_done),
-
-	.I2C_SCL(HDMI_I2C_SCL),
-	.I2C_SDA(HDMI_I2C_SDA),
-
-	.dvi_mode(dvi_mode),
-	.audio_96k(audio_96k),
-	.limited(hdmi_limited),
-	.ypbpr(ypbpr_en & direct_video)
-);
-
 assign HDMI_I2C_SCL = hdmi_scl_en ? 1'b0 : 1'bZ;
 assign HDMI_I2C_SDA = hdmi_sda_en ? 1'b0 : 1'bZ;
 
 wire hdmi_scl_en, hdmi_sda_en;
+
+/* TODO: later, when we have HDMI
 cyclonev_hps_interface_peripheral_i2c hdmi_i2c
 (
 	.out_clk(hdmi_scl_en),
@@ -1056,6 +983,7 @@ cyclonev_hps_interface_peripheral_i2c hdmi_i2c
 	.out_data(hdmi_sda_en),
 	.sda(HDMI_I2C_SDA)
 );
+*/
 
 `ifndef MISTER_DEBUG_NOHDMI
 
@@ -1143,7 +1071,7 @@ always @(posedge clk_vid) begin
 			if(~&vcnt) vcnt <= vcnt + 1'd1;
 			if(~old_vs & vga_vs_osd & ~f1) vsz <= vcnt;
 			if(old_vs & ~vga_vs_osd) vcnt <= 0;
-			
+
 			if(vcnt == 1) vde <= 1;
 			if(vcnt == vsz - 3) vde <= 0;
 		end
@@ -1168,7 +1096,7 @@ end
 wire hdmi_tx_clk;
 `ifndef MISTER_DEBUG_NOHDMI
 cyclonev_clkselect hdmi_clk_sw
-( 
+(
 	.clkselect({1'b1, ~vga_fb & direct_video}),
 	.inclk({clk_vid, hdmi_clk_out, 2'b00}),
 	.outclk(hdmi_tx_clk)
@@ -1210,7 +1138,7 @@ reg [23:0] hdmi_out_d;
 always @(posedge hdmi_tx_clk) begin
 	reg hs,vs,de;
 	reg [23:0] d;
-	
+
 	hs <= (~vga_fb & direct_video) ? dv_hs   : (direct_video & csync_en) ? hdmi_cs_osd : hdmi_hs_osd;
 	vs <= (~vga_fb & direct_video) ? dv_vs   : hdmi_vs_osd;
 	de <= (~vga_fb & direct_video) ? dv_de   : hdmi_de_osd;
@@ -1306,7 +1234,7 @@ csync csync_vga(clk_vid, vga_hs_osd, vga_vs_osd, vga_cs_osd);
 	);
 
 	wire cs1 = (vga_fb | vga_scaler) ? vgas_cs : vga_cs;
-
+	assign VGA_EN = 0;
 	assign VGA_VS = (VGA_EN | SW[3]) ? 1'bZ      : ((vga_fb | vga_scaler) ? ~vgas_vs : ~vga_vs) | csync_en;
 	assign VGA_HS = (VGA_EN | SW[3]) ? 1'bZ      :  (vga_fb | vga_scaler) ? (csync_en ? ~vgas_cs : ~vgas_hs) : (csync_en ? ~vga_cs : ~vga_hs);
 	assign VGA_R  = (VGA_EN | SW[3]) ? 6'bZZZZZZ :  (vga_fb | vga_scaler) ? vgas_o[23:18] : vga_o[23:18];
@@ -1327,7 +1255,7 @@ always @(posedge clk_vid) begin
 		video_sync <= (sync_line == line_cnt);
 
 		line_cnt <= line_cnt + 1'd1;
-		if(~hs_cnt[1]) begin	
+		if(~hs_cnt[1]) begin
 			hs_cnt <= hs_cnt + 1'd1;
 			if(hs_cnt[0]) begin
 				sync_line <= (line_cnt - vs_line);
@@ -1425,25 +1353,6 @@ alsa alsa
 	.pcm_r(alsa_r)
 );
 
-////////////////  User I/O (USB 3.0 connector) /////////////////////////
-
-assign USER_IO[0] =                       !user_out[0]  ? 1'b0 : 1'bZ;
-assign USER_IO[1] =                       !user_out[1]  ? 1'b0 : 1'bZ;
-assign USER_IO[2] = !(SW[1] ? HDMI_I2S   : user_out[2]) ? 1'b0 : 1'bZ;
-assign USER_IO[3] =                       !user_out[3]  ? 1'b0 : 1'bZ;
-assign USER_IO[4] = !(SW[1] ? HDMI_SCLK  : user_out[4]) ? 1'b0 : 1'bZ;
-assign USER_IO[5] = !(SW[1] ? HDMI_LRCLK : user_out[5]) ? 1'b0 : 1'bZ;
-assign USER_IO[6] =                       !user_out[6]  ? 1'b0 : 1'bZ;
-
-assign user_in[0] =         USER_IO[0];
-assign user_in[1] =         USER_IO[1];
-assign user_in[2] = SW[1] | USER_IO[2];
-assign user_in[3] =         USER_IO[3];
-assign user_in[4] = SW[1] | USER_IO[4];
-assign user_in[5] = SW[1] | USER_IO[5];
-assign user_in[6] =         USER_IO[6];
-
-
 ///////////////////  User module connection ////////////////////////////
 
 wire        clk_sys;
@@ -1526,9 +1435,9 @@ emu emu
 (
 	.CLK_50M(FPGA_CLK2_50),
 	.RESET(reset),
-	.HPS_BUS({scanlines,f1, HDMI_TX_VS, 
+	.HPS_BUS({scanlines,f1, HDMI_TX_VS,
 				 clk_100m, clk_ihdmi,
-				 ce_hpix, hde_emu, hhs_fix, hvs_fix, 
+				 ce_hpix, hde_emu, hhs_fix, hvs_fix,
 				 io_wait, clk_sys, io_fpga, io_uio, io_strobe, io_wide, io_din, io_dout}),
 
 	.VGA_R(r_out),
@@ -1649,7 +1558,7 @@ endmodule
 module sync_fix
 (
 	input clk,
-	
+
 	input sync_in,
 	output sync_out
 );
@@ -1708,10 +1617,10 @@ always @(posedge clk) begin
 		end
 		else hs_len <= h_cnt;
 	end
-	
+
 	if (~vsync) csync_hs <= hsync;
 	else if(h_cnt == line_len) csync_hs <= 1;
-	
+
 	csync_vs <= vsync;
 end
 
