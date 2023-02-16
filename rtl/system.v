@@ -40,7 +40,7 @@ module system (
 
 	// 6 devices, 16 bits each - -127..+127, Y: [15:8], X: [7:0]
 	input [95:0]	analog_r,
-	
+
 	// 6 devices, 8 bits each - paddle 0..255
 	input [47:0]	paddle,
 
@@ -57,7 +57,7 @@ module system (
 
 	// [31:0] - seconds since 1970-01-01 00:00:00, [32] - toggle with every change
 	input [32:0]	timestamp,
-	
+
 	output			VGA_HS,
 	output			VGA_VS,
 	output [7:0]	VGA_R,
@@ -84,7 +84,7 @@ wire [8:0] vcnt;
 jtframe_vtimer #(
 	.HB_START(VGA_WIDTH - 1'b1),
 	.VB_START(VGA_HEIGHT - 1'b1)
-) vtimer 
+) vtimer
 (
 	.clk(clk_24),
 	.pxl_cen(ce_6),
@@ -291,7 +291,7 @@ wire cpu_wr_n;
 
 // reg 	cpu_cen_count; // 24 Mhz
 wire	cpu_cen = 1'b1;
-// always @(posedge clk_24) 
+// always @(posedge clk_24)
 // begin
 // 	cpu_cen_count <= cpu_cen_count + 1'b1;
 // end
@@ -468,7 +468,7 @@ localparam SD_CLEAR_BEGIN = 1;
 localparam SD_CLEAR = 2;
 reg [2:0] sd_state;
 reg [15:0] vblank_start;
-always @(posedge clk_24) 
+always @(posedge clk_24)
 begin
 	case(sd_state)
 		SD_WAIT:
@@ -496,7 +496,7 @@ begin
 
 		SD_CLEAR:
 		begin
-			
+
 			if(pause_system)
 			begin
 				sd_state <= SD_WAIT;
@@ -567,7 +567,7 @@ starfield #(
 	.sf_on(sf_on2),
 	.sf_star(sf_star2)
 );
-`endif 
+`endif
 wire 		sf_on3;
 wire [7:0]	sf_star3;
 `ifndef DISABLE_STARS_3
@@ -606,12 +606,12 @@ wire [23:0] rgb_sprite = { spr_b, spr_g, spr_r };
 `ifdef DEBUG_SPRITE_COLLISION
 // highlight sprite collisions
 wire [23:0] rgb_sprite_debug = {3{spritedebugram_data_out_a}};
-wire [23:0] rgb_final = spritedebugram_data_out_a ? rgb_sprite_debug : video_sprite_layer_high ? 
+wire [23:0] rgb_final = spritedebugram_data_out_a ? rgb_sprite_debug : video_sprite_layer_high ?
 							(spr_a ? rgb_sprite : charmap_a ? rgb_charmap : tilemap_a ? rgb_tilemap : rgb_starfield) :
 							(charmap_a ? rgb_charmap : spr_a ? rgb_sprite : tilemap_a ? rgb_tilemap : rgb_starfield);
 `endif
 `ifndef DEBUG_SPRITE_COLLISION
-wire [23:0] rgb_final = video_sprite_layer_high ? 
+wire [23:0] rgb_final = video_sprite_layer_high ?
 							(spr_a ? rgb_sprite : charmap_a ? rgb_charmap : tilemap_a ? rgb_tilemap : rgb_starfield) :
 							(charmap_a ? rgb_charmap : spr_a ? rgb_sprite : tilemap_a ? rgb_tilemap : rgb_starfield);
 `endif
@@ -661,7 +661,7 @@ sound #(.ROM_WIDTH(SOUND_ROM_WIDTH)) sound (
 	.soundrom_data_out(soundrom_data_out),
 	.audio_out(snd_audio_out)
 );
-`endif 
+`endif
 
 // Mix audio (badly)
 wire signed [15:0] music_signed = { 1'b0, music_audio_out, 5'b0 };
@@ -756,7 +756,7 @@ dpram #(11,8) bgcolram
 `endif
 
 `ifndef DISABLE_TILEMAP
-// Tilemap index RAM 
+// Tilemap index RAM
 dpram #(TILEMAP_RAM_WIDTH,8) tilemapram
 (
 	.clock_a(clk_24),
@@ -828,7 +828,7 @@ wire	 [7:0]	spritedebugram_data_out_b;
 reg				spritedebugram_wr_a;
 wire			spritedebugram_wr_b;
 
-// Sprite Debug Frame Buffer 
+// Sprite Debug Frame Buffer
 dpram #(17,8) spritedebugram
 (
 	.clock_a(clk_24),

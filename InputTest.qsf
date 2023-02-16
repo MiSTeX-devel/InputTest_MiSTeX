@@ -13,7 +13,7 @@ set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 
-set_global_assignment -name LAST_QUARTUS_VERSION "17.0.2 Lite Edition"
+set_global_assignment -name LAST_QUARTUS_VERSION "21.1.0 Lite Edition"
 
 set_global_assignment -name GENERATE_RBF_FILE ON
 set_global_assignment -name PROJECT_OUTPUT_DIRECTORY output_files
@@ -62,12 +62,12 @@ set_global_assignment -name VERILOG_MACRO "MISTER_FB=1"
 # ------------------------
 #set_global_assignment -name VERILOG_MACRO "DISABLE_CPU=1"
 #set_global_assignment -name VERILOG_MACRO "DISABLE_CHARMAP=1"
-#set_global_assignment -name VERILOG_MACRO "DISABLE_SPRITES=1"
-#set_global_assignment -name VERILOG_MACRO "DISABLE_TILEMAP=1"
-#set_global_assignment -name VERILOG_MACRO "DISABLE_MUSIC=1"
-#set_global_assignment -name VERILOG_MACRO "DISABLE_SOUND=1"
-#set_global_assignment -name VERILOG_MACRO "DISABLE_STARS_2=1"
-#set_global_assignment -name VERILOG_MACRO "DISABLE_STARS_3=1"
+set_global_assignment -name VERILOG_MACRO "DISABLE_SPRITES=1"
+set_global_assignment -name VERILOG_MACRO "DISABLE_TILEMAP=1"
+set_global_assignment -name VERILOG_MACRO "DISABLE_MUSIC=1"
+set_global_assignment -name VERILOG_MACRO "DISABLE_SOUND=1"
+set_global_assignment -name VERILOG_MACRO "DISABLE_STARS_2=1"
+set_global_assignment -name VERILOG_MACRO "DISABLE_STARS_3=1"
 #set_global_assignment -name VERILOG_MACRO "DEBUG_SPRITE_COLLISION=1"
 
 source sys/sys.tcl
