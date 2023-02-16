@@ -20,8 +20,8 @@ module hps_interface
     input  reset
 );
 
-wire [15:0] word_in;
-wire [15:0] word_out;
+wire [15:0] gp_word_in;
+wire [15:0] gp_word_out;
 wire        spi_rx_strobe;
 
 spi_slave spi_slave (
@@ -29,14 +29,14 @@ spi_slave spi_slave (
     .spi_device__sdo(spi_miso),
     .spi_device__sdi(spi_mosi),
     .spi_device__cs(spi_cs),
-    .word_in(word_in),
-    .word_out(word_out),
+    .word_in(gp_word_out),
+    .word_out(gp_word_in),
     .word_complete(spi_rx_strobe),
     .clk(clk_sys),
     .rst(reset)
 );
 
-assign word_in = gp_in[15:0];
+assign gp_word_in = gp_in[15:0];
 
 always @(posedge clk_sys)
 begin
@@ -46,7 +46,7 @@ begin
         osd_enable,    // [19]
         fpga_enable,   // [18]
         2'b0,          // [17:16]
-        word_out       // [15:0]
+        gp_word_out       // [15:0]
     };
     io_strobe <= spi_rx_strobe;
 end

@@ -110,13 +110,13 @@ module sys_top
 
 	/////// HPS INTERFACE ///////
 	input         HPS_SPI_MOSI,
-    output        HPS_SPI_MISO,
-    input         HPS_SPI_CLK,
-    input         HPS_SPI_CS,
+	output        HPS_SPI_MISO,
+	input         HPS_SPI_CLK,
+	input         HPS_SPI_CS,
 
-	input 		  HPS_FPGA_ENABLE,
-    input 		  HPS_OSD_ENABLE,
-    input 		  HPS_IO_ENABLE
+	input         HPS_FPGA_ENABLE,
+	input         HPS_OSD_ENABLE,
+	input         HPS_IO_ENABLE
 );
 
 wire [2:0] PLL_CLOCKS;
@@ -143,7 +143,7 @@ ALTPLL #(
 	.CLKENA(5'd31),
 	.EXTCLKENA(4'd15),
 	.FBIN(1'd1),
-	.INCLK(FPGA_CLK1_50),
+	.INCLK(CLK_50),
 	.PFDENA(1'd1),
 	.PLLENA(1'd1),
 	.CLK(PLL_CLOCKS),
