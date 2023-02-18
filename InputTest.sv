@@ -170,7 +170,8 @@ module emu
 	input   [6:0] USER_IN,
 	output  [6:0] USER_OUT,
 
-	input         OSD_STATUS
+	input         OSD_STATUS,
+	output   [7:0] DEBUG
 );
 
 ///////// Default values for ports not used in this core /////////

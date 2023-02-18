@@ -167,17 +167,17 @@ localparam DW = (WIDE) ? 15 : 7;
 localparam AW = (WIDE) ? 12 : 13;
 localparam VD = VDNUM-1;
 
-wire        io_strobe= HPS_BUS[33];
-wire        io_enable= HPS_BUS[34];
-wire        fp_enable= HPS_BUS[35];
-wire        io_wide  = (WIDE) ? 1'b1 : 1'b0;
-wire [15:0] io_din   = HPS_BUS[31:16];
+wire        io_strobe = HPS_BUS[33];
+wire        io_enable = HPS_BUS[34];
+wire        fp_enable = HPS_BUS[35];
+wire        io_wide   = (WIDE) ? 1'b1 : 1'b0;
+wire [15:0] io_din    = HPS_BUS[31:16];
 reg  [15:0] io_dout;
 
 assign HPS_BUS[37]   = ioctl_wait;
 assign HPS_BUS[36]   = clk_sys;
 assign HPS_BUS[32]   = io_wide;
-assign HPS_BUS[15:0] = EXT_BUS[32] ? EXT_BUS[15:0] : fp_enable ? fp_dout : io_dout;
+assign HPS_BUS[15:0] = fp_enable ? fp_dout : io_dout;
 
 reg [15:0] cfg;
 assign buttons = cfg[1:0];
@@ -249,6 +249,20 @@ reg [MAX_W:0] byte_cnt;
 reg   [3:0] sdn_ack;
 wire [15:0] disk = 16'd1 << io_din[11:8];
 
+`ifdef DEBUG_HPS_OP
+assign DEBUG[5] = io_enable;
+
+spi_master spi_debug (
+	.spi_controller__sdo(DEBUG[0]),
+	.spi_controller__sck(DEBUG[1]),
+	.spi_controller__cs(DEBUG[4]),
+	.word_out({byte_cnt, io_din, io_dout}),
+	.start_transfer(io_strobe),
+	.clk(clk_sys),
+	.rst(reset),
+	);
+`endif
+
 always@(posedge clk_sys) begin : uio_block
 	reg [15:0] cmd;
 	reg  [2:0] b_wr;
@@ -271,7 +285,7 @@ always@(posedge clk_sys) begin : uio_block
 		stflg <= stflg + 1'd1;
 		status_req <= status_in;
 	end
-	
+
 	old_upload_req <= ioctl_upload_req;
 	if(~old_upload_req & ioctl_upload_req) upload_req <= 1;
 
@@ -602,7 +616,7 @@ always@(posedge clk_sys) begin : fio_block
 	reg        has_cmd;
 	reg [26:0] addr;
 	reg        wr;
-	
+
 	ioctl_rd <= 0;
 	ioctl_wr <= wr;
 	wr <= 0;
@@ -635,7 +649,7 @@ always@(posedge clk_sys) begin : fio_block
 					FIO_FILE_TX:
 						begin
 							cnt <= cnt + 1'd1;
-							case(cnt) 
+							case(cnt)
 								0:	if(io_din[7:0] == 8'hAA) begin
 										ioctl_addr <= 0;
 										ioctl_upload <= 1;

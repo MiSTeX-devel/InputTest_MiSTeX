@@ -82,10 +82,19 @@ set_location_assignment PIN_Y3  -to HPS_SPI_MISO
 set_location_assignment PIN_U1  -to HPS_SPI_CLK
 set_location_assignment PIN_N1  -to HPS_SPI_CS
 
+set_instance_assignment -name WEAK_PULL_UP_RESISTOR ON -to HPS_SPI_CLK
+
 # pmodb pins 5-7
 set_location_assignment PIN_AA1 -to HPS_FPGA_ENABLE
 set_location_assignment PIN_W2  -to HPS_OSD_ENABLE
 set_location_assignment PIN_U2  -to HPS_IO_ENABLE
+
+# DEBUG
+set_location_assignment PIN_C11 -to DEBUG[0]
+set_location_assignment PIN_B12 -to DEBUG[1]
+set_location_assignment PIN_E12 -to DEBUG[2]
+set_location_assignment PIN_D13 -to DEBUG[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to DEBUG[*]
 
 #============================================================
 # CLOCK

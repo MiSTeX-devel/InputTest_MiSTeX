@@ -114,9 +114,10 @@ module sys_top
 	input         HPS_SPI_CLK,
 	input         HPS_SPI_CS,
 
-	input         HPS_FPGA_ENABLE,
+	input 	      HPS_FPGA_ENABLE,
 	input         HPS_OSD_ENABLE,
-	input         HPS_IO_ENABLE
+	input         HPS_IO_ENABLE,
+	output  [3:0] DEBUG
 );
 
 wire [2:0] PLL_CLOCKS;
@@ -136,7 +137,7 @@ ALTPLL #(
 	.CLK2_MULTIPLY_BY(5'd12),
 	.CLK2_PHASE_SHIFT(1'd0),
 	.COMPENSATE_CLOCK("CLK0"),
-	.INCLK0_INPUT_FREQUENCY(15'd50000),
+	.INCLK0_INPUT_FREQUENCY(24'd50000),
 	.OPERATION_MODE("NORMAL")
 ) main_pll (
 	.ARESET(1'd0),
@@ -150,9 +151,9 @@ ALTPLL #(
 	.LOCKED()
 );
 
-assign FPGA_CLK1_50 = PLL_CLOCKS[0];
-assign FPGA_CLK2_50 = PLL_CLOCKS[1];
-assign FPGA_CLK3_50 = PLL_CLOCKS[2];
+wire FPGA_CLK1_50 = PLL_CLOCKS[0];
+wire FPGA_CLK2_50 = PLL_CLOCKS[1];
+wire FPGA_CLK3_50 = PLL_CLOCKS[2];
 
 //////////////////////  Secondary SD  ///////////////////////////////////
 wire SD_CS, SD_CLK, SD_MOSI;
@@ -198,7 +199,7 @@ wire led_locked;
 `endif
 
 //LEDs on main board
-assign LED = (led_overtake & led_state) | (~led_overtake & {1'b0,led_locked,1'b0, ~led_p, 1'b0, ~led_d, 1'b0, ~led_u});
+assign LED = ~((led_overtake & led_state) | (~led_overtake & {1'b0,led_locked,1'b0, ~led_p, 1'b0, ~led_d, 1'b0, ~led_u}));
 
 wire btn_r, btn_o, btn_u;
 `ifdef MISTER_DUAL_SDRAM
@@ -209,6 +210,8 @@ wire btn_r, btn_o, btn_u;
 
 wire [2:0] mcp_btn;
 wire       mcp_sdcd;
+
+`ifdef USE_MCP23009
 mcp23009 mcp23009
 (
 	.clk(FPGA_CLK2_50),
@@ -220,7 +223,7 @@ mcp23009 mcp23009
 	.scl(IO_SCL),
 	.sda(IO_SDA)
 );
-
+`endif
 
 reg btn_user, btn_osd;
 always @(posedge FPGA_CLK2_50) begin
@@ -246,17 +249,22 @@ end
 
 // gp_in[31] = 0 - quick flag that FPGA is initialized (HPS reads 1 when FPGA is not in user mode)
 //                 used to avoid lockups while JTAG loading
-wire [31:0] gp_in = {1'b0, btn_user | btn[1], btn_osd | btn[0], SW[3], 8'd0, io_ver, 1'b0 /* io_ack */, io_wide, io_dout};
+// HPS output
 wire [31:0] gp_out;
-
-wire  [1:0] io_ver = 1; // 0 - obsolete. 1 - optimized HPS I/O. 2,3 - reserved for future.
-wire        io_wait;
-wire        io_wide;
-wire [15:0] io_dout;
 wire [15:0] io_din      = gp_out[15:0];
 wire        fpga_enable = gp_out[18];
 wire        osd_enable  = gp_out[19];
 wire        io_enable   = gp_out[20];
+
+// HPS input
+wire  [1:0] io_ver = 1; // 0 - obsolete. 1 - optimized HPS I/O. 2,3 - reserved for future.
+wire        io_wait;
+wire        io_wide;
+wire [15:0] io_dout;
+reg  [15:0] io_dout_sys;
+
+wire [15:0] dout = io_dout;
+wire [31:0] gp_in = io_dout; //{1'b0, btn_user | btn[1], btn_osd | btn[0], SW[3], 8'd0, io_ver, 1'b0, io_wide, io_dout};
 
 `ifndef MISTER_DEBUG_NOHDMI
 wire io_osd_hdmi = osd_enable & ~fpga_enable;
@@ -271,12 +279,13 @@ wire io_uio      = ~osd_enable & io_enable;
 	wire  [7:0] core_type  = 'hA4; // generic core.
 `endif
 
+// TODO
 // HPS will not communicate to core if magic is different
 wire [31:0] core_magic = {24'h5CA623, core_type};
 
 wire io_strobe;
 hps_interface hps_interface (
-	.gp_in({~gp_out[31] ? core_magic : gp_in}),
+	.gp_in(io_dout),
 	.gp_out(gp_out),
 	.io_strobe(io_strobe),
 
@@ -292,6 +301,16 @@ hps_interface hps_interface (
 	.clk_sys(clk_sys),
 	.reset(reset_req)
 );
+
+spi_master spi_debug (
+	.spi_controller__sdo(DEBUG[0]),
+	.spi_controller__sck(DEBUG[2]),
+	.spi_controller__cs(DEBUG[3]),
+	.word_out({io_fpga, io_uio, gp_out[15:0], io_dout}),
+	.start_transfer(io_strobe),
+	.clk(clk_sys),
+	.rst(reset_req),
+	);
 
 reg [15:0] cfg;
 
@@ -530,27 +549,10 @@ cyclonev_hps_interface_interrupts interrupts
 
 ///////////////////////////  RESET  ///////////////////////////////////
 
-reg reset_req = 0;
-always @(posedge FPGA_CLK2_50) begin
-	reg [1:0] resetd, resetd2;
-	reg       old_reset;
-
-	//latch the reset
-	old_reset <= reset;
-	if(~old_reset & reset) reset_req <= 1;
-
-	//special combination to set/clear the reset
-	//preventing of accidental reset control
-	if(resetd==1) reset_req <= 1;
-	if(resetd==2 && resetd2==0) reset_req <= 0;
-
-	resetd  <= gp_out[31:30];
-	resetd2 <= resetd;
-end
+wire reset_req = 0;
 
 ////////////////////  SYSTEM MEMORY & SCALER  /////////////////////////
 
-wire reset;
 wire clk_100m;
 
 wire clk_pal = clk_audio;
@@ -1292,7 +1294,7 @@ pll_audio pll_audio
 wire spdif;
 audio_out audio_out
 (
-	.reset(reset | areset),
+	.reset(reset_req | areset),
 	.clk(clk_audio),
 
 	.att(vol_att),
@@ -1336,7 +1338,7 @@ wire [15:0] alsa_l, alsa_r;
 
 alsa alsa
 (
-	.reset(reset),
+	.reset(reset_req),
 	.clk(clk_audio),
 
 	.ram_address(alsa_address),
@@ -1434,7 +1436,7 @@ wire [13:0] fb_stride;
 emu emu
 (
 	.CLK_50M(FPGA_CLK2_50),
-	.RESET(reset),
+	.RESET(reset_req),
 	.HPS_BUS({scanlines,f1, HDMI_TX_VS,
 				 clk_100m, clk_ihdmi,
 				 ce_hpix, hde_emu, hhs_fix, hvs_fix,
@@ -1549,6 +1551,7 @@ emu emu
 
 	.USER_OUT(user_out),
 	.USER_IN(user_in)
+	//.DEBUG(DEBUG)
 );
 
 endmodule
