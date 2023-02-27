@@ -211,7 +211,7 @@ localparam CONF_STR = {
 	"-;",
 	"O6,Rotate video,Off,On;",
 	"O7,Flip video,Off,On;",
-	"-;",	
+	"-;",
 	"RA,Open menu;",
 	"-;",
 	"F0,BIN,Load BIOS;",
@@ -299,7 +299,7 @@ hps_io #(.CONF_STR(CONF_STR)) hps_io
 	.joystick_l_analog_3(joystick_l_analog_3),
 	.joystick_l_analog_4(joystick_l_analog_4),
 	.joystick_l_analog_5(joystick_l_analog_5),
-	
+
 	.joystick_r_analog_0(joystick_r_analog_0),
 	.joystick_r_analog_1(joystick_r_analog_1),
 	.joystick_r_analog_2(joystick_r_analog_2),

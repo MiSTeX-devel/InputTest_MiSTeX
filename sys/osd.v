@@ -65,7 +65,7 @@ always@(posedge clk_sys) begin
 		cmd <= 0;
 		if(cmd[7:4] == 4) osd_enable <= cmd[0];
 	end else begin
-		if(~old_strobe & io_strobe) begin
+		if(io_strobe) begin
 			if(!has_cmd) begin
 				has_cmd <= 1;
 				cmd <= io_din[7:0];
