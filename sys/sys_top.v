@@ -19,10 +19,16 @@
 //
 //============================================================================
 
-module sys_top
+module sys_top #(
+    parameter DW = 128,	// DDR3 avalon data width
+    parameter AW = 28	// DDR3 avalon address width
+)
 (
 	/////////// CLOCK //////////
 	input         CLK_50,
+	`ifdef CLK_100_EXT
+	input         CLK_100,
+	`endif
 
 `ifndef MISTER_DEBUG_NOHDMI
 	//////////// HDMI //////////
@@ -39,7 +45,7 @@ module sys_top
 	output [23:0] HDMI_TX_D,
 	output        HDMI_TX_HS,
 	output        HDMI_TX_VS,
-
+	
 	input         HDMI_TX_INT,
 `endif
 
@@ -117,6 +123,7 @@ module sys_top
 	input 	      HPS_FPGA_ENABLE,
 	input         HPS_OSD_ENABLE,
 	input         HPS_IO_ENABLE,
+	input         HPS_CORE_RESET,
 	output  [3:0] DEBUG
 );
 
